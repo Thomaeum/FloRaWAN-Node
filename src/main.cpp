@@ -66,13 +66,14 @@ void os_getDevEui (u1_t* buf) { memcpy_P(buf, DEVEUI, 8);}
 static const u1_t PROGMEM APPKEY[16] = { 0x50, 0x20, 0xFF, 0x03, 0x71, 0x90, 0xFD, 0xEA, 0xE6, 0x28, 0x4A, 0x73, 0xE1, 0xCF, 0xC5, 0xBB };
 void os_getDevKey (u1_t* buf) {  memcpy_P(buf, APPKEY, 16);}
 
-static uint8_t mydata[] = "Hello, world!";
+static uint8_t mydata[] = "Isaak kann nicht löten.";
 static osjob_t sendjob;
 
 // Schedule TX every this many seconds (might become longer due to duty
 // cycle limitations).
 const unsigned TX_INTERVAL = 60;
 
+# warning "Update this PIN mapping!!!"
 // Pin mapping
 const lmic_pinmap lmic_pins = {
     .nss = 6,
