@@ -31,6 +31,7 @@
  *
  *******************************************************************************/
 
+#include <Arduino.h>
 #include <lmic.h>
 #include <hal/hal.h>
 #include <SPI.h>
@@ -53,27 +54,26 @@
 // first. When copying an EUI from ttnctl output, this means to reverse
 // the bytes. For TTN issued EUIs the last bytes should be 0xD5, 0xB3,
 // 0x70.
-static const u1_t PROGMEM APPEUI[8]={ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+static const u1_t APPEUI[8]={ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 void os_getArtEui (u1_t* buf) { memcpy_P(buf, APPEUI, 8);}
 
 // This should also be in little endian format, see above.
-static const u1_t PROGMEM DEVEUI[8]={ 0x70, 0xB3, 0xD5, 0x7E, 0xD0, 0x04, 0xB7, 0x92 };
+static const u1_t DEVEUI[8]={ 0x70, 0xB3, 0xD5, 0x7E, 0xD0, 0x04, 0xB7, 0x92 };
 void os_getDevEui (u1_t* buf) { memcpy_P(buf, DEVEUI, 8);}
 
 // This key should be in big endian format (or, since it is not really a
 // number but a block of memory, endianness does not really apply). In
 // practice, a key taken from ttnctl can be copied as-is.
-static const u1_t PROGMEM APPKEY[16] = { 0x50, 0x20, 0xFF, 0x03, 0x71, 0x90, 0xFD, 0xEA, 0xE6, 0x28, 0x4A, 0x73, 0xE1, 0xCF, 0xC5, 0xBB };
+static const u1_t APPKEY[16] = { 0x50, 0x20, 0xFF, 0x03, 0x71, 0x90, 0xFD, 0xEA, 0xE6, 0x28, 0x4A, 0x73, 0xE1, 0xCF, 0xC5, 0xBB };
 void os_getDevKey (u1_t* buf) {  memcpy_P(buf, APPKEY, 16);}
 
-static uint8_t mydata[] = "Isaak kann nicht löten.";
+static uint8_t mydata[] = "Hello, world!";
 static osjob_t sendjob;
 
 // Schedule TX every this many seconds (might become longer due to duty
 // cycle limitations).
-const unsigned TX_INTERVAL = 60;
+const unsigned TX_INTERVAL = 10;
 
-# warning "Update this PIN mapping!!!"
 // Pin mapping
 const lmic_pinmap lmic_pins = {
     .nss = 6,
@@ -223,7 +223,7 @@ void onEvent (ev_t ev) {
 }
 
 void setup() {
-    Serial.begin(9600);
+    Serial.begin(115200);
     Serial.println(F("Starting"));
 
     #ifdef VCC_ENABLE
