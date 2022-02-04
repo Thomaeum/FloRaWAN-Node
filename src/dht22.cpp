@@ -1,9 +1,6 @@
 #include <Arduino.h>
 #include <DHT.h>
 
-#define DHTTYPE DHT22
-#define DHT22_Pin 2
-
 class cDHTSensor {
     private:
         int port = 2;
