@@ -42,16 +42,9 @@ protected:
     virtual bool NetGetSessionState(SessionState &State) override;
 };
 
-
 /****************************************************************************\
 |
-|	The sensor object
-|
-\****************************************************************************/
-
-/****************************************************************************\
-|
-|	Globals
+|	Globals & LoRaWAN Provisioning Info
 |
 \****************************************************************************/
 
@@ -69,15 +62,9 @@ const cMyLoRaWAN::lmic_pinmap myPinMap = {
      .dio = { 26, 4, 2 },
 };
 
-std::uint8_t uplink[7];
+std::uint8_t uplink[20];
 
 int wahrheit;
-
-/****************************************************************************\
-|
-|	Provisioning info for LoRaWAN OTAA
-|
-\****************************************************************************/
 
 // deveui, little-endian
 static const std::uint8_t deveui[] = { 0x77, 0xBE, 0x04, 0xD0, 0x7E, 0xD5, 0xB3, 0x70 };
@@ -140,6 +127,7 @@ void loop() {
             [](void *pClientData, bool fSucccess) -> void {
                 Serial.println(fSucccess);
                 Serial.println("Wir sind krass.");
+                wahrheit = false;
             },
             uplink,
             false,
@@ -235,10 +223,3 @@ cMyLoRaWAN::NetGetSessionState(SessionState &State) {
     // we didn't save earlier, so just tell the core we don't have data.
     return false;
 }
-
-
-/****************************************************************************\
-|
-|	Sensor methods
-|
-\****************************************************************************/
