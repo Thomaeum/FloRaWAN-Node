@@ -2,10 +2,7 @@
 #include <soil_moisture.cpp>
 #include <photo_resistor.cpp>
 #include <dht22.cpp>
-
-cSoilMoisture mySoilSensor = cSoilMoisture(A1);
-cPhotoResistor myPhotoSensor = cPhotoResistor(A0);
-cDHTSensor myDHT = cDHTSensor(2);
+#include <bmp280.cpp>
 
 void setup() {
     Serial.begin(115200);
@@ -14,10 +11,18 @@ void setup() {
 
 void loop() {
 
+    cSoilMoisture mySoilSensor = cSoilMoisture(A1);
+    cPhotoResistor myPhotoSensor = cPhotoResistor(A0);
+    cDHT22 myDHT22 = cDHT22(2);
+    cBMT280 myBMP280 = cBMT280();
+
     Serial.println("");
-    Serial.println(mySoilSensor.getSensorData());
-    Serial.println(myPhotoSensor.getSensorData());
-    Serial.println(myDHT.getTemperature());
-    Serial.println(myDHT.getHumidity());
+    Serial.println("Soil Moisture: " + String(mySoilSensor.getSensorData()));
+    Serial.println("Photo Resistor: " + String(myPhotoSensor.getSensorData()));
+    Serial.println("DHT22 Temperature: " + String(myDHT22.getTemperature()));
+    Serial.println("DHT22 Humidity: " + String(myDHT22.getHumidity()));
+    Serial.println("BMP280 Temperature: " + String(myBMP280.getTemperature()));
+    Serial.println("BMP280 Pressure: " + String(myBMP280.getPressure()));
+    
     delay(1000);
 }

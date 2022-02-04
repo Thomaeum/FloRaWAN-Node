@@ -6,15 +6,12 @@
 #define BMP_MOSI (11)
 #define BMP_CS   (10)*/
 
-class cDHTSensor {
+class cBMT280 {
     private:
-        int port = 2;
         Adafruit_BMP280 bmp;
 
     public:
-        cDHTSensor(int pPort) {
-            port = pPort;
-
+        cBMT280() {
             unsigned status;
             status = bmp.begin();
             if (!status) {

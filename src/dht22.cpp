@@ -1,13 +1,13 @@
 #include <Arduino.h>
 #include <DHT.h>
 
-class cDHTSensor {
+class cDHT22 {
     private:
         int port = 2;
         DHT dht = DHT(this->port, DHT22);
 
     public:
-        cDHTSensor(int pPort) {
+        cDHT22(int pPort) {
             port = pPort;
             dht = DHT(this->port, DHT22);
             dht.begin();
