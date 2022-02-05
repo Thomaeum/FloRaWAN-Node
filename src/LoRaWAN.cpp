@@ -62,9 +62,10 @@ const cMyLoRaWAN::lmic_pinmap myPinMap = {
      .dio = { 26, 4, 2 },
 };
 
-std::uint8_t uplink[20];
+std::uint8_t uplink[3];
 
-int wahrheit;
+//int wahrheit;
+unsigned long lastMills;
 
 // deveui, little-endian
 static const std::uint8_t deveui[] = { 0x77, 0xBE, 0x04, 0xD0, 0x7E, 0xD5, 0xB3, 0x70 };
@@ -95,15 +96,16 @@ void setup() {
     // set up lorawan.
     myLoRaWAN.setup();
 
-    uplink[0] = std::uint8_t(1);
+    /*uplink[0] = std::uint8_t(1);
     uplink[1] = std::uint8_t(2);
     uplink[2] = std::uint8_t(3);
     uplink[3] = std::uint8_t(4);
     uplink[4] = std::uint8_t(5);
     uplink[5] = std::uint8_t(6);
-    uplink[6] = std::uint8_t(7);
+    uplink[6] = std::uint8_t(7);*/
 
-    wahrheit = false;
+    //wahrheit = false;
+    lastMills = -90000;
 }
 
 /****************************************************************************\
@@ -113,21 +115,23 @@ void setup() {
 \****************************************************************************/
 
 void loop() {
-    // the order of these is arbitrary, but you must poll them all.
-    for (size_t i = 1000; i > 0; --i) {
-        myLoRaWAN.loop();
-        myEventLog.loop();
-    }
+    myLoRaWAN.loop();
+    myEventLog.loop();
 
-    if (!wahrheit) {
-        wahrheit = true;
+    if (millis() - lastMills >= 100*1000) {
+        Serial.println(millis()-lastMills);
+        lastMills = millis();
+        Serial.println("uplink size: " + String(sizeof(uplink)));
+
+        Serial.println(F("Sending uplink"));
+        //wahrheit = true;
         myLoRaWAN.SendBuffer(
             uplink,
             sizeof(uplink),
             [](void *pClientData, bool fSucccess) -> void {
                 Serial.println(fSucccess);
                 Serial.println("Wir sind krass.");
-                wahrheit = false;
+                //wahrheit = false;
             },
             uplink,
             false,
@@ -180,7 +184,7 @@ cMyLoRaWAN::setup() {
             }
         },
         (void *) this   // in case we need it.
-        );
+    );
 }
 
 // this method is called when the LMIC needs OTAA info.
