@@ -11,9 +11,9 @@ void setup() {
 
 void loop() {
 
-    cSoilMoisture mySoilSensor = cSoilMoisture(A1);
-    cPhotoResistor myPhotoSensor = cPhotoResistor(A0);
-    cDHT22 myDHT22 = cDHT22(2);
+    cSoilMoisture mySoilSensor = cSoilMoisture(26);
+    cPhotoResistor myPhotoSensor = cPhotoResistor(25);
+    cDHT22 myDHT22 = cDHT22(27);
     cBMT280 myBMP280 = cBMT280();
 
     Serial.println("");
