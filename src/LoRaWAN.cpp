@@ -1,238 +1,247 @@
-/*
+/*******************************************************************************
+ * Copyright (c) 2015 Thomas Telkamp and Matthijs Kooijman
+ * Copyright (c) 2018 Terry Moore, MCCI
+ *
+ * Permission is hereby granted, free of charge, to anyone
+ * obtaining a copy of this document and accompanying files,
+ * to do whatever they want with them without any restriction,
+ * including, but not limited to, copying, modification and redistribution.
+ * NO WARRANTY OF ANY KIND IS PROVIDED.
+ *
+ * This example sends a valid LoRaWAN packet with payload "Hello,
+ * world!", using frequency and encryption settings matching those of
+ * the The Things Network.
+ *
+ * This uses OTAA (Over-the-air activation), where where a DevEUI and
+ * application key is configured, which are used in an over-the-air
+ * activation procedure where a DevAddr and session keys are
+ * assigned/generated for use with all further communication.
+ *
+ * Note: LoRaWAN per sub-band duty-cycle limitation is enforced (1% in
+ * g1, 0.1% in g2), but not the TTN fair usage policy (which is probably
+ * violated by this sketch when left running for longer)!
 
-Module:  simple_sensor_bme280.ino
+ * To use this sketch, first register your application and device with
+ * the things network, to set or generate an AppEUI, DevEUI and AppKey.
+ * Multiple devices can use the same AppEUI, but each device has its own
+ * DevEUI and AppKey.
+ *
+ * Do not forget to define the radio type correctly in
+ * arduino-lmic/project_config/lmic_project_config.h or from your BOARDS.txt.
+ *
+ *******************************************************************************/
 
-Function:
-    Example app showing how to periodically poll a
-    sensor.
+#include <lmic.h>
+#include <hal/hal.h>
+#include <SPI.h>
+#include <Arduino.h>
 
-Copyright notice and License:
-    See LICENSE file accompanying this project.
+//
+// For normal use, we require that you edit the sketch to replace FILLMEIN
+// with values assigned by the TTN console. However, for regression tests,
+// we want to be able to compile these scripts. The regression tests define
+// COMPILE_REGRESSION_TEST, and in that case we define FILLMEIN to a non-
+// working but innocuous value.
+//
+#ifdef COMPILE_REGRESSION_TEST
+# define FILLMEIN 0
+#else
+# warning "You must replace the values marked FILLMEIN with real values from the TTN control panel!"
+# define FILLMEIN (#dont edit this, edit the lines that use FILLMEIN)
+#endif
 
-Author:
-    Terry Moore, MCCI Corporation	May 2021
+// This EUI must be in little-endian format, so least-significant-byte
+// first. When copying an EUI from ttnctl output, this means to reverse
+// the bytes. For TTN issued EUIs the last bytes should be 0xD5, 0xB3,
+// 0x70.
+static const u1_t PROGMEM APPEUI[8]={ 0x4F, 0x4C, 0x4E, 0x4F, 0x4F, 0x93, 0x34, 0x4C };
+void os_getArtEui (u1_t* buf) { memcpy_P(buf, APPEUI, 8);}
 
-Notes:
-    This app compiles and runs on an MCCI Catena 4610 board.
+// This should also be in little endian format, see above.
+static const u1_t PROGMEM DEVEUI[8]={ 0x77, 0xBE, 0x04, 0xD0, 0x7E, 0xD5, 0xB3, 0x70 };
+void os_getDevEui (u1_t* buf) { memcpy_P(buf, DEVEUI, 8);}
 
-*/
+// This key should be in big endian format (or, since it is not really a
+// number but a block of memory, endianness does not really apply). In
+// practice, a key taken from ttnctl can be copied as-is.
+static const u1_t PROGMEM APPKEY[16] = { 0x3F, 0x92, 0xDA, 0x98, 0x9C, 0xE2, 0xE1, 0x00, 0x41, 0xEE, 0x07, 0x48, 0x17, 0x03, 0xE1, 0x7E };
+void os_getDevKey (u1_t* buf) {  memcpy_P(buf, APPKEY, 16);}
 
-#include <Arduino_LoRaWAN_network.h>
-#include <Arduino_LoRaWAN_EventLog.h>
-#include <arduino_lmic.h>
+static uint8_t mydata[] = "Hello, world!";
+static osjob_t sendjob;
 
-/****************************************************************************\
-|
-|	The LoRaWAN object
-|
-\****************************************************************************/
+// Schedule TX every this many seconds (might become longer due to duty
+// cycle limitations).
+const unsigned TX_INTERVAL = 60;
 
-class cMyLoRaWAN : public Arduino_LoRaWAN_network {
-public:
-    cMyLoRaWAN() {};
-    using Super = Arduino_LoRaWAN_network;
-    void setup();
-
-protected:
-    // you'll need to provide implementation for this.
-    virtual bool GetOtaaProvisioningInfo(Arduino_LoRaWAN::OtaaProvisioningInfo*) override;
-    // if you have persistent storage, you can provide implementations for these:
-    virtual void NetSaveSessionInfo(const SessionInfo &Info, const uint8_t *pExtraInfo, size_t nExtraInfo) override;
-    virtual void NetSaveSessionState(const SessionState &State) override;
-    virtual bool NetGetSessionState(SessionState &State) override;
-};
-
-/****************************************************************************\
-|
-|	Globals & LoRaWAN Provisioning Info
-|
-\****************************************************************************/
-
-// the global LoRaWAN instance.
-cMyLoRaWAN myLoRaWAN {};
-
-// the global event log instance
-Arduino_LoRaWAN::cEventLog myEventLog;
-
-// pin map
-const cMyLoRaWAN::lmic_pinmap myPinMap = {
-     .nss = 27,
-     .rxtx = cMyLoRaWAN::lmic_pinmap::LMIC_UNUSED_PIN,
-     .rst = 33,
-     .dio = { 26, 4, 2 },
-};
-
-/*
+// Pin mapping
 const lmic_pinmap lmic_pins = {
     .nss = 27,
     .rxtx = LMIC_UNUSED_PIN,
     .rst = 33,
     .dio = {26, 4, 2},
 };
-*/
 
-std::uint8_t uplink[3];
-
-//int wahrheit;
-unsigned long lastMills;
-
-// deveui, little-endian
-static const std::uint8_t deveui[] = { 0x77, 0xBE, 0x04, 0xD0, 0x7E, 0xD5, 0xB3, 0x70 };
-
-// appeui, little-endian
-static const std::uint8_t appeui[] = { 0x4F, 0x4C, 0x4E, 0x4F, 0x4F, 0x93, 0x34, 0x4C };
-
-// appkey: just a string of bytes, sometimes referred to as "big endian".
-static const std::uint8_t appkey[] = { 0x3F, 0x92, 0xDA, 0x98, 0x9C, 0xE2, 0xE1, 0x00, 0x41, 0xEE, 0x07, 0x48, 0x17, 0x03, 0xE1, 0x7E };
-
-/****************************************************************************\
-|
-|	setup()
-|
-\****************************************************************************/
-
-void setup() {
-    // set baud rate, and wait for serial to be ready.
-    Serial.begin(115200);
-    while (! Serial)
-        yield();
-
-    Serial.println(F("starting setup"));
-
-    // set up the log; do this fisrt.
-    myEventLog.setup();
-
-    // set up lorawan.
-    myLoRaWAN.setup();
-
-    /*uplink[0] = std::uint8_t(1);
-    uplink[1] = std::uint8_t(2);
-    uplink[2] = std::uint8_t(3);
-    uplink[3] = std::uint8_t(4);
-    uplink[4] = std::uint8_t(5);
-    uplink[5] = std::uint8_t(6);
-    uplink[6] = std::uint8_t(7);*/
-
-    //wahrheit = false;
-    lastMills = -90000;
+void printHex2(unsigned v) {
+    v &= 0xff;
+    if (v < 16)
+        Serial.print('0');
+    Serial.print(v, HEX);
 }
 
-/****************************************************************************\
-|
-|	loop()
-|
-\****************************************************************************/
+void do_send(osjob_t* j){
+    // Check if there is not a current TX/RX job running
+    if (LMIC.opmode & OP_TXRXPEND) {
+        Serial.println(F("OP_TXRXPEND, not sending"));
+    } else {
+        // Prepare upstream data transmission at the next possible time.
+        LMIC_setTxData2(1, mydata, sizeof(mydata)-1, 0);
+        Serial.println(F("Packet queued"));
+    }
+    // Next TX is scheduled after TX_COMPLETE event.
+}
 
-void loop() {
-    myLoRaWAN.loop();
-    myEventLog.loop();
+void onEvent (ev_t ev) {
+    Serial.print(os_getTime());
+    Serial.print(": ");
+    switch(ev) {
+        case EV_SCAN_TIMEOUT:
+            Serial.println(F("EV_SCAN_TIMEOUT"));
+            break;
+        case EV_BEACON_FOUND:
+            Serial.println(F("EV_BEACON_FOUND"));
+            break;
+        case EV_BEACON_MISSED:
+            Serial.println(F("EV_BEACON_MISSED"));
+            break;
+        case EV_BEACON_TRACKED:
+            Serial.println(F("EV_BEACON_TRACKED"));
+            break;
+        case EV_JOINING:
+            Serial.println(F("EV_JOINING"));
+            break;
+        case EV_JOINED:
+            Serial.println(F("EV_JOINED"));
+            {
+              u4_t netid = 0;
+              devaddr_t devaddr = 0;
+              u1_t nwkKey[16];
+              u1_t artKey[16];
+              LMIC_getSessionKeys(&netid, &devaddr, nwkKey, artKey);
+              Serial.print("netid: ");
+              Serial.println(netid, DEC);
+              Serial.print("devaddr: ");
+              Serial.println(devaddr, HEX);
+              Serial.print("AppSKey: ");
+              for (size_t i=0; i<sizeof(artKey); ++i) {
+                if (i != 0)
+                  Serial.print("-");
+                printHex2(artKey[i]);
+              }
+              Serial.println("");
+              Serial.print("NwkSKey: ");
+              for (size_t i=0; i<sizeof(nwkKey); ++i) {
+                      if (i != 0)
+                              Serial.print("-");
+                      printHex2(nwkKey[i]);
+              }
+              Serial.println();
+            }
+            // Disable link check validation (automatically enabled
+            // during join, but because slow data rates change max TX
+	    // size, we don't use it in this example.
+            LMIC_setLinkCheckMode(0);
+            break;
+        /*
+        || This event is defined but not used in the code. No
+        || point in wasting codespace on it.
+        ||
+        || case EV_RFU1:
+        ||     Serial.println(F("EV_RFU1"));
+        ||     break;
+        */
+        case EV_JOIN_FAILED:
+            Serial.println(F("EV_JOIN_FAILED"));
+            break;
+        case EV_REJOIN_FAILED:
+            Serial.println(F("EV_REJOIN_FAILED"));
+            break;
+        case EV_TXCOMPLETE:
+            Serial.println(F("EV_TXCOMPLETE (includes waiting for RX windows)"));
+            if (LMIC.txrxFlags & TXRX_ACK)
+              Serial.println(F("Received ack"));
+            if (LMIC.dataLen) {
+              Serial.print(F("Received "));
+              Serial.print(LMIC.dataLen);
+              Serial.println(F(" bytes of payload"));
+            }
+            // Schedule next transmission
+            os_setTimedCallback(&sendjob, os_getTime()+sec2osticks(TX_INTERVAL), do_send);
+            break;
+        case EV_LOST_TSYNC:
+            Serial.println(F("EV_LOST_TSYNC"));
+            break;
+        case EV_RESET:
+            Serial.println(F("EV_RESET"));
+            break;
+        case EV_RXCOMPLETE:
+            // data received in ping slot
+            Serial.println(F("EV_RXCOMPLETE"));
+            break;
+        case EV_LINK_DEAD:
+            Serial.println(F("EV_LINK_DEAD"));
+            break;
+        case EV_LINK_ALIVE:
+            Serial.println(F("EV_LINK_ALIVE"));
+            break;
+        /*
+        || This event is defined but not used in the code. No
+        || point in wasting codespace on it.
+        ||
+        || case EV_SCAN_FOUND:
+        ||    Serial.println(F("EV_SCAN_FOUND"));
+        ||    break;
+        */
+        case EV_TXSTART:
+            Serial.println(F("EV_TXSTART"));
+            break;
+        case EV_TXCANCELED:
+            Serial.println(F("EV_TXCANCELED"));
+            break;
+        case EV_RXSTART:
+            /* do not print anything -- it wrecks timing */
+            break;
+        case EV_JOIN_TXCOMPLETE:
+            Serial.println(F("EV_JOIN_TXCOMPLETE: no JoinAccept"));
+            break;
 
-    if (millis() - lastMills >= 100*1000) {
-        Serial.println(millis()-lastMills);
-        lastMills = millis();
-        Serial.println("uplink size: " + String(sizeof(uplink)));
-
-        Serial.println(F("Sending uplink"));
-        //wahrheit = true;
-        myLoRaWAN.SendBuffer(
-            uplink,
-            sizeof(uplink),
-            [](void *pClientData, bool fSucccess) -> void {
-                Serial.println(fSucccess);
-                Serial.println("Wir sind krass.");
-                //wahrheit = false;
-            },
-            uplink,
-            false,
-            1
-        );
+        default:
+            Serial.print(F("Unknown event: "));
+            Serial.println((unsigned) ev);
+            break;
     }
 }
 
-/****************************************************************************\
-|
-|	LoRaWAN methods
-|
-\****************************************************************************/
+void setup() {
+    Serial.begin(9600);
+    Serial.println(F("Starting"));
 
-// our setup routine does the class setup and then registers an event handler so
-// we can see some interesting things
-void
-cMyLoRaWAN::setup() {
-    // simply call begin() w/o parameters, and the LMIC's built-in
-    // configuration for this board will be used.
-    this->Super::begin(myPinMap);
+    #ifdef VCC_ENABLE
+    // For Pinoccio Scout boards
+    pinMode(VCC_ENABLE, OUTPUT);
+    digitalWrite(VCC_ENABLE, HIGH);
+    delay(1000);
+    #endif
 
-    // LMIC_selectSubBand(0);
-    LMIC_setClockError(MAX_CLOCK_ERROR * 1 / 100);
+    // LMIC init
+    os_init_ex(&lmic_pins);
+    // Reset the MAC state. Session and pending data transfers will be discarded.
+    LMIC_reset();
 
-    this->RegisterListener(
-        // use a lambda so we're "inside" the cMyLoRaWAN from public/private perspective
-        [](void *pClientInfo, uint32_t event) -> void {
-            auto const pThis = (cMyLoRaWAN *)pClientInfo;
-
-            // for tx start, we quickly capture the channel and the RPS
-            if (event == EV_TXSTART) {
-                // use another lambda to make log prints easy
-                myEventLog.logEvent(
-                    (void *) pThis,
-                    LMIC.txChnl,
-                    LMIC.rps,
-                    0,
-                    // the print-out function
-                    [](cEventLog::EventNode_t const *pEvent) -> void {
-                        Serial.print(F(" TX:"));
-                        myEventLog.printCh(std::uint8_t(pEvent->getData(0)));
-                        myEventLog.printRps(rps_t(pEvent->getData(1)));
-                    }
-                );
-            }
-            // else if (event == some other), record with print-out function
-            else {
-                // do nothing.
-            }
-        },
-        (void *) this   // in case we need it.
-    );
+    // Start job (sending automatically starts OTAA too)
+    do_send(&sendjob);
 }
 
-// this method is called when the LMIC needs OTAA info.
-// return false to indicate "no provisioning", otherwise
-// fill in the data and return true.
-bool
-cMyLoRaWAN::GetOtaaProvisioningInfo(OtaaProvisioningInfo *pInfo) {
-    // these are the same constants used in the LMIC compliance test script; eases testing
-    // with the RedwoodComm RWC5020B/RWC5020M testers.
-
-    // initialize info
-    memcpy(pInfo->DevEUI, deveui, sizeof(pInfo->DevEUI));
-    memcpy(pInfo->AppEUI, appeui, sizeof(pInfo->AppEUI));
-    memcpy(pInfo->AppKey, appkey, sizeof(pInfo->AppKey));
-
-    return true;
-}
-
-// save Info somewhere (if possible)
-// if not possible, just do nothing and make sure you return false
-// from NetGetSessionState().
-void
-cMyLoRaWAN::NetSaveSessionInfo(const SessionInfo &Info, const uint8_t *pExtraInfo, size_t nExtraInfo) {
-    // in this example, we can't save, so we just return.
-}
-
-// save State somewhere. Note that it's often the same;
-// often only the frame counters change.
-// if not possible, just do nothing and make sure you return false
-// from NetGetSessionState().
-void
-cMyLoRaWAN::NetSaveSessionState(const SessionState &State) {
-    // in this example, we can't save, so we just return.
-}
-
-// either fetch SessionState from somewhere and return true or...
-// return false, which forces a re-join.
-bool
-cMyLoRaWAN::NetGetSessionState(SessionState &State) {
-    // we didn't save earlier, so just tell the core we don't have data.
-    return false;
+void loop() {
+    os_runloop_once();
 }
