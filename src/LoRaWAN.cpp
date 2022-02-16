@@ -62,6 +62,15 @@ const cMyLoRaWAN::lmic_pinmap myPinMap = {
      .dio = { 26, 4, 2 },
 };
 
+/*
+const lmic_pinmap lmic_pins = {
+    .nss = 27,
+    .rxtx = LMIC_UNUSED_PIN,
+    .rst = 33,
+    .dio = {26, 4, 2},
+};
+*/
+
 std::uint8_t uplink[3];
 
 //int wahrheit;
