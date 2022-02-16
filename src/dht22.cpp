@@ -3,7 +3,7 @@
 
 class cDHT22 {
     private:
-        int port = 2;
+        int port;
         DHT dht = DHT(this->port, DHT22);
 
     public:
