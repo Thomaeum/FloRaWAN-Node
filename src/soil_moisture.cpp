@@ -8,6 +8,7 @@ class cSoilMoisture {
         cSoilMoisture(int pPort) {
             port = pPort;
         }
+        
         int getSensorData() {
             return analogRead(port);
         }

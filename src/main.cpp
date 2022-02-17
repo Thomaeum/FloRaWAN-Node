@@ -2,6 +2,11 @@
 #include <lmic.h>
 #include <hal/hal.h>
 
+#include <soil_moisture.cpp>
+#include <photo_resistor.cpp>
+#include <dht22.cpp>
+#include <bmp280.cpp>
+
 /*
 * PIN mapping
 */
@@ -31,7 +36,12 @@ void os_getDevKey (u1_t* buf) {  memcpy_P(buf, APPKEY, 16);}
 *   basic configuration
 */
 osjob_t sendjob;
-const unsigned TX_INTERVAL = 60;
+const unsigned TX_INTERVAL = 30;
+
+cSoilMoisture mySoilSensor = cSoilMoisture(32);
+cPhotoResistor myPhotoSensor = cPhotoResistor(25);
+cDHT22 myDHT22 = cDHT22(15);
+cBMT280 myBMP280 = cBMT280();
 
 /*
 *   sending data
@@ -44,6 +54,24 @@ void send(osjob_t* j) {
     */
 
     if (LMIC_queryTxReady()) {
+
+        uint8_t sm = mySoilSensor.getSensorData();
+        uint8_t pr = myPhotoSensor.getSensorData();
+        uint8_t dht22_temp = myDHT22.getTemperature();
+        uint8_t dht22_hum = myDHT22.getHumidity();
+        uint8_t bmp280_temp = myBMP280.getTemperature();
+        uint8_t bmp280_press = myBMP280.getPressure();
+
+        uint8_t mydata[6] = {sm, pr, dht22_temp, dht22_hum, bmp280_temp, bmp280_press};
+
+        if (LMIC.opmode & OP_TXRXPEND) {
+            Serial.println(F("OP_TXRXPEND, not sending"));
+        } else {
+            // Prepare upstream data transmission at the next possible time.
+            LMIC_setTxData2(1, mydata, sizeof(mydata)-1, 0);
+            Serial.println(F("Packet queued"));
+        }
+
         /*  do all sending tasks here!!!
         *   submit all data to send using: LMIC_setTxData2();
         *   compare 2.5.15 for details
@@ -151,7 +179,6 @@ void setup() {
         */
     }
     
-
 }
 
 /*
