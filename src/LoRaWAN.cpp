@@ -28,9 +28,15 @@ static const u1_t PROGMEM APPKEY[16] = { 0x3F, 0x92, 0xDA, 0x98, 0x9C, 0xE2, 0xE
 void os_getDevKey (u1_t* buf) {  memcpy_P(buf, APPKEY, 16);}
 
 /*
+*   basic configuration
+*/
+osjob_t sendjob;
+const unsigned TX_INTERVAL = 60;
+
+/*
 *   sending data
 */
-void send() {
+void send(osjob_t* j) {
     
     /*
     *   send battery status
@@ -89,6 +95,7 @@ void eventCb(void *pUserData, ev_t ev) {
               Serial.print(LMIC.dataLen);
               Serial.println(F(" bytes of payload"));
             }
+            os_setTimedCallback(&sendjob, os_getTime()+sec2osticks(TX_INTERVAL), send);
             break;
         case EV_LOST_TSYNC:
             Serial.println(F("EV_LOST_TSYNC"));
@@ -137,6 +144,7 @@ void setup() {
         LMIC_reset();
         LMIC_registerEventCb(eventCb, NULL);
         LMIC_startJoining();
+        send(&sendjob);
     } else {
         /*  LMIC_setSession();
         *   compare section 2.5.4
