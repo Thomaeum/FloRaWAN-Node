@@ -64,13 +64,13 @@ void send(osjob_t* j) {
 
         uint8_t mydata[6] = {sm, pr, dht22_temp, dht22_hum, bmp280_temp, bmp280_press};
 
-        if (LMIC.opmode & OP_TXRXPEND) {
+        /*if (LMIC.opmode & OP_TXRXPEND) {
             Serial.println(F("OP_TXRXPEND, not sending"));
-        } else {
+        } else {*/
             // Prepare upstream data transmission at the next possible time.
-            LMIC_setTxData2(1, mydata, sizeof(mydata)-1, 0);
-            Serial.println(F("Packet queued"));
-        }
+        LMIC_setTxData2(1, mydata, sizeof(mydata)-1, 0);
+        Serial.println(F("Packet queued"));
+        //}
 
         /*  do all sending tasks here!!!
         *   submit all data to send using: LMIC_setTxData2();
