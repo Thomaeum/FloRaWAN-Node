@@ -1,3 +1,9 @@
 .DS_Store
 **/.pio
 **/.vscode
+
+# CLion Config
+*.idea
+/cmake-*
+CMakeLists.txt
+CMakeListsPrivate.txt
