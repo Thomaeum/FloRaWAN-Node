@@ -48,7 +48,7 @@ void os_getDevEui (u1_t* buf) { memcpy_P(buf, DEVEUI, 8);}
 static const u1_t PROGMEM APPKEY[16] = { 0x3F, 0x92, 0xDA, 0x98, 0x9C, 0xE2, 0xE1, 0x00, 0x41, 0xEE, 0x07, 0x48, 0x17, 0x03, 0xE1, 0x7E };
 void os_getDevKey (u1_t* buf) {  memcpy_P(buf, APPKEY, 16);}
 
-static uint8_t mydata[] = "fliuwezrciwuzoew8ruczwiergczmlewiurgzmewlirgzcnweirgzceurigczwelirugczmwlriguczmwelruigczerlgiuzwelmgrxizelwiruxgmzlwe";
+static uint8_t mydata[] = "test";
 static osjob_t sendjob;
 
 // Schedule TX every this many seconds (might become longer due to duty
