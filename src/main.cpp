@@ -41,7 +41,7 @@ const unsigned TX_INTERVAL = 30;
 cSoilMoisture mySoilSensor = cSoilMoisture(32);
 cPhotoResistor myPhotoSensor = cPhotoResistor(25);
 cDHT22 myDHT22 = cDHT22(15);
-//cBMT280 myBMP280 = cBMT280();
+cBMT280 myBMP280 = cBMT280();
 
 /*
 *   sending data
@@ -59,11 +59,11 @@ void send(osjob_t* j) {
         uint8_t pr = myPhotoSensor.getSensorData();
         uint8_t dht22_temp = myDHT22.getTemperature();
         uint8_t dht22_hum = myDHT22.getHumidity();
-        //uint8_t bmp280_temp = myBMP280.getTemperature();
-        //uint8_t bmp280_press = myBMP280.getPressure();
+        uint8_t bmp280_temp = myBMP280.getTemperature();
+        uint8_t bmp280_press = myBMP280.getPressure();
 
-        //uint8_t mydata[6] = {sm, pr, dht22_temp, dht22_hum, bmp280_temp, bmp280_press};
-        uint8_t mydata[4] = { sm, pr, dht22_hum, dht22_temp };
+        uint8_t mydata[6] = {sm, pr, dht22_temp, dht22_hum, bmp280_temp, bmp280_press};
+        //uint8_t mydata[4] = { sm, pr, dht22_hum, dht22_temp };
 
         LMIC_setTxData2(1, mydata, sizeof(mydata), 0);
         Serial.println(F("Packet queued"));
