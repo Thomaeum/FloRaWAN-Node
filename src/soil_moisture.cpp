@@ -14,6 +14,6 @@ class cSoilMoisture {
         }
 
         uint8_t getSensorData_uint8_t() {
-            return (uint8_t) map(getSensorData_int(), 0, 4095, 2500, 450);
+            return (uint8_t) map(getSensorData_int(), 2500, 450, 0, 100);
         }
 };

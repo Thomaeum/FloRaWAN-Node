@@ -63,7 +63,7 @@ void send(osjob_t* j) {
         //uint8_t bmp280_press = myBMP280.getPressure();
 
         //uint8_t mydata[6] = {sm, pr, dht22_temp, dht22_hum, bmp280_temp, bmp280_press};
-        uint8_t mydata[4] = { sm, pr, dht22_hum, dht22_temp };
+        uint8_t mydata[4] = { sm, pr, dht22_temp, dht22_hum };
 
         Serial.println(sm);
         Serial.println(pr);
