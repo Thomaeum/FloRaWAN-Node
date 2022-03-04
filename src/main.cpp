@@ -55,21 +55,27 @@ void send(osjob_t* j) {
 
     if (LMIC_queryTxReady()) {
 
-        uint8_t sm = mySoilSensor.getSensorData();
-        uint8_t pr = myPhotoSensor.getSensorData();
-        uint8_t dht22_temp = myDHT22.getTemperature();
-        uint8_t dht22_hum = myDHT22.getHumidity();
+        uint8_t sm = mySoilSensor.getSensorData_uint8_t();
+        uint8_t pr = myPhotoSensor.getSensorData_uint8_t();
+        uint8_t dht22_temp = myDHT22.getTemperature_uint8_t();
+        uint8_t dht22_hum = myDHT22.getHumidity_uint8_t();
         //uint8_t bmp280_temp = myBMP280.getTemperature();
         //uint8_t bmp280_press = myBMP280.getPressure();
 
         //uint8_t mydata[6] = {sm, pr, dht22_temp, dht22_hum, bmp280_temp, bmp280_press};
         uint8_t mydata[4] = { sm, pr, dht22_hum, dht22_temp };
 
+        Serial.println(sm);
+        Serial.println(pr);
+        Serial.println(dht22_temp);
+        Serial.println(dht22_hum);
+
         LMIC_setTxData2(1, mydata, sizeof(mydata), 0);
         Serial.println(F("Packet queued"));
     } else {
         /* something is already happening, probably sending has already been initiaed */
     }
+    //os_setTimedCallback(&sendjob, os_getTime()+sec2osticks(TX_INTERVAL), send);
 
 }
 
@@ -164,6 +170,8 @@ void setup() {
     LMIC_reset();
     LMIC_registerEventCb(eventCb, NULL);
     LMIC_startJoining();
+
+    //os_setCallback(&sendjob, send);
     
 }
 
@@ -173,5 +181,7 @@ void setup() {
 void loop() {
 
     os_runloop_once();
+
+    //Serial.println(F(mySoilSensor.getSensorData()));
 
 }

@@ -13,12 +13,23 @@ class cDHT22 {
             dht.begin();
         }
 
-        float getHumidity() {
+        float getHumidity_float() {
             return dht.readHumidity();
             
         }
 
-        float getTemperature() {
+        float getTemperature_float() {
             return dht.readTemperature();
+        }
+
+        uint8_t getHumidity_uint8_t() {
+            return (uint8_t) round(getHumidity_float());//getHumidity_float();
+        }
+
+        uint8_t getTemperature_uint8_t() {
+            float i = map(getTemperature_float(), -20, 80, 0, 100);
+            i = i*2;
+            return (uint8_t) round(i);
+            //return (uint8_t) getTemperature_float();
         }
 };

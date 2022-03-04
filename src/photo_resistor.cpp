@@ -9,7 +9,11 @@ class cPhotoResistor {
             port = pPort;
         }
 
-        int getSensorData() {
+        int getSensorData_int() {
             return analogRead(port);
+        }
+
+        uint8_t getSensorData_uint8_t() {
+            return (uint8_t) map(getSensorData_int(), 0, 4095, 100, 0);
         }
 };
