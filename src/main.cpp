@@ -36,7 +36,10 @@ void os_getDevKey (u1_t* buf) {  memcpy_P(buf, APPKEY, 16);}
 *   basic configuration
 */
 osjob_t sendjob;
-const unsigned TX_INTERVAL = 30;
+const unsigned SEND_INTERVAL = 30; //in seconds
+const unsigned us_to_s = 1000000;
+
+RTC_DATA_ATTR bool joined = false;
 
 cSoilMoisture mySoilSensor = cSoilMoisture(32);
 cPhotoResistor myPhotoSensor = cPhotoResistor(25);
@@ -65,18 +68,23 @@ void send(osjob_t* j) {
         //uint8_t mydata[6] = {sm, pr, dht22_temp, dht22_hum, bmp280_temp, bmp280_press};
         uint8_t mydata[4] = { sm, pr, dht22_temp, dht22_hum };
 
-        Serial.println(sm);
+        /*Serial.println(sm);
         Serial.println(pr);
         Serial.println(dht22_temp);
-        Serial.println(dht22_hum);
+        Serial.println(dht22_hum);*/
 
         LMIC_setTxData2(1, mydata, sizeof(mydata), 0);
-        Serial.println(F("Packet queued"));
+        //Serial.println(F("Packet queued"));
     } else {
         /* something is already happening, probably sending has already been initiaed */
     }
-    //os_setTimedCallback(&sendjob, os_getTime()+sec2osticks(TX_INTERVAL), send);
+    //os_setTimedCallback(&sendjob, os_getTime()+sec2osticks(SEND_INTERVAL), send);
 
+}
+
+void initatite_sleep() {
+    //store session information here
+    esp_deep_sleep(SEND_INTERVAL * us_to_s);
 }
 
 /*
@@ -104,6 +112,7 @@ void eventCb(void *pUserData, ev_t ev) {
         case EV_JOINED:
             Serial.println(F("EV_JOINED"));
             LMIC_setLinkCheckMode(0);
+            joined = true;
             os_setCallback(&sendjob, send);
             break;
         case EV_JOIN_FAILED:
@@ -121,7 +130,8 @@ void eventCb(void *pUserData, ev_t ev) {
               Serial.print(LMIC.dataLen);
               Serial.println(F(" bytes of payload"));
             }
-            os_setTimedCallback(&sendjob, os_getTime()+sec2osticks(TX_INTERVAL), send);
+            initatite_sleep();
+            //os_setTimedCallback(&sendjob, os_getTime()+sec2osticks(SEND_INTERVAL), send);
             break;
         case EV_LOST_TSYNC:
             Serial.println(F("EV_LOST_TSYNC"));
@@ -166,10 +176,18 @@ void setup() {
     Serial.println(F("Starting"));
 
     os_init_ex(&lmic_pins);
-
-    LMIC_reset();
     LMIC_registerEventCb(eventCb, NULL);
-    LMIC_startJoining();
+
+    if (joined) {
+        //load session data here
+        // perhapts, send cb needs to be called here
+            // os_setCallback(&sendjob, send);
+        LMIC_reset(); // ONLY TEMPORARY!!!!!!!!!!!!!!!! because session data is not reloaded yet
+        LMIC_startJoining(); // ONLY TEMPORARY!!!!!!!!!!!!!!!! because session data is not reloaded yet
+    } else {
+        LMIC_reset();
+        LMIC_startJoining();
+    }
 
     //os_setCallback(&sendjob, send);
     
