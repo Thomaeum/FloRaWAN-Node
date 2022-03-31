@@ -39,7 +39,14 @@ osjob_t sendjob;
 const unsigned SEND_INTERVAL = 30; //in seconds
 const unsigned us_to_s = 1000000;
 
+//required for session restore
 RTC_DATA_ATTR bool joined = false;
+RTC_DATA_ATTR u4_t netidR;
+RTC_DATA_ATTR devaddr_t devaddrR;
+RTC_DATA_ATTR u1_t* nwkKeyR;
+RTC_DATA_ATTR u1_t* artKeyR;
+RTC_DATA_ATTR u4_t seqnoUpR;
+RTC_DATA_ATTR u4_t seqnoDnR;
 
 cSoilMoisture mySoilSensor = cSoilMoisture(32);
 cPhotoResistor myPhotoSensor = cPhotoResistor(25);
@@ -84,6 +91,17 @@ void send(osjob_t* j) {
 
 void initatite_sleep() {
     //store session information here
+    seqnoDnR = LMIC.seqnoDn;
+    seqnoUpR = LMIC.seqnoUp;
+    netidR = LMIC.netid;
+    devaddrR = LMIC.devaddr;
+    nwkKeyR = LMIC.nwkKey;
+    artKeyR = LMIC.artKey;
+
+    //gracefully shutdown the library
+    LMIC_shutdown();
+
+    //sending to deep_sleep
     esp_deep_sleep(SEND_INTERVAL * us_to_s);
 }
 
@@ -131,7 +149,6 @@ void eventCb(void *pUserData, ev_t ev) {
               Serial.println(F(" bytes of payload"));
             }
             initatite_sleep();
-            //os_setTimedCallback(&sendjob, os_getTime()+sec2osticks(SEND_INTERVAL), send);
             break;
         case EV_LOST_TSYNC:
             Serial.println(F("EV_LOST_TSYNC"));
@@ -176,20 +193,18 @@ void setup() {
     Serial.println(F("Starting"));
 
     os_init_ex(&lmic_pins);
+    LMIC_reset();
     LMIC_registerEventCb(eventCb, NULL);
 
     if (joined) {
-        //load session data here
+        LMIC_setSession(netidR, devaddrR, nwkKeyR, artKeyR);
+        LMIC.seqnoDn = seqnoDnR;
+        LMIC.saveIrqFlags = seqnoUpR;
         // perhapts, send cb needs to be called here
             // os_setCallback(&sendjob, send);
-        LMIC_reset(); // ONLY TEMPORARY!!!!!!!!!!!!!!!! because session data is not reloaded yet
-        LMIC_startJoining(); // ONLY TEMPORARY!!!!!!!!!!!!!!!! because session data is not reloaded yet
     } else {
-        LMIC_reset();
         LMIC_startJoining();
     }
-
-    //os_setCallback(&sendjob, send);
     
 }
 
@@ -199,7 +214,5 @@ void setup() {
 void loop() {
 
     os_runloop_once();
-
-    //Serial.println(F(mySoilSensor.getSensorData()));
 
 }
