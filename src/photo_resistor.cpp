@@ -14,6 +14,6 @@ class cPhotoResistor {
         }
 
         uint8_t getSensorData_uint8_t() {
-            return (uint8_t) map(getSensorData_int(), 4095, 0, 0, 255);//100 gibt zu hohe Werte zurück (zu wenig Information)
+            return (uint8_t) map(getSensorData_int(), 4095, 0, 0, 255);
         }
 };

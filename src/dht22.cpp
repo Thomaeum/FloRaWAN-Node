@@ -23,13 +23,12 @@ class cDHT22 {
         }
 
         uint8_t getHumidity_uint8_t() {
-            return (uint8_t) round(getHumidity_float());//getHumidity_float();
+            return (uint8_t) round(getHumidity_float());
         }
 
         uint8_t getTemperature_uint8_t() {
             float i = getTemperature_float()*2;
             int k = map(i, -40, 160, 0, 200);
             return (uint8_t) round(k);
-            //return (uint8_t) getTemperature_float();
         }
 };
