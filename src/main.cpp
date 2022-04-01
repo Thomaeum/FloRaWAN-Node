@@ -8,7 +8,8 @@
 #include <bmp280.cpp>
 
 /*
-* PIN mapping
+* PIN mapping: configuration of the pins used by the library
+*/
 */
 const lmic_pinmap lmic_pins = {
     .nss = 27,
@@ -17,39 +18,43 @@ const lmic_pinmap lmic_pins = {
     .dio = {26, 4, 2},
 };
 
-/*
- * Provisioning API
- */
-// little-endian format
+// 
+// Provisioning API
+// all those keys are necessary to join the TTN network using OTAA (over the air authentication)
+// 
+
+// App EUI used for joining the network
+// use little endian format here
 static const u1_t PROGMEM APPEUI[8]={ 0x4F, 0x4C, 0x4E, 0x4F, 0x4F, 0x93, 0x34, 0x4C };
 void os_getArtEui (u1_t* buf) { memcpy_P(buf, APPEUI, 8);}
 
-// little-endian format
-//test-device
+// dev EUI used for joining the network
+// use little-endian format here
 static const u1_t PROGMEM DEVEUI[8]={0x77, 0xBE, 0x04, 0xD0, 0x7E, 0xD5, 0xB3, 0x70};
-//test-device2
-//static const u1_t PROGMEM DEVEUI[8]={0x03, 0xE0, 0x04, 0xD0, 0x7E, 0xD5, 0xB3, 0x70};
-//test-device3
-//static const u1_t PROGMEM DEVEUI[8]={0x07, 0xE0, 0x04, 0xD0, 0x7E, 0xD5, 0xB3, 0x70};
 void os_getDevEui (u1_t* buf) { memcpy_P(buf, DEVEUI, 8);}
 
-// big-endian format
-//test-device
+// use big-endian format here
 static const u1_t PROGMEM APPKEY[16] = {0x3F, 0x92, 0xDA, 0x98, 0x9C, 0xE2, 0xE1, 0x00, 0x41, 0xEE, 0x07, 0x48, 0x17, 0x03, 0xE1, 0x7E};
-//test-device2
-//static const u1_t PROGMEM APPKEY[16] = {0xFB, 0x96, 0x94, 0x5A, 0x15, 0x9C, 0x1D, 0xAF, 0x29, 0xA4, 0x7F, 0xFD, 0x40, 0xEC, 0x57, 0x19};
-//test-device3
-//static const u1_t PROGMEM APPKEY[16] = {0x94, 0x37, 0xF7, 0x95, 0x72, 0x64, 0xDC, 0xD0, 0x71, 0x86, 0xE2, 0x46, 0x11, 0x24, 0x72, 0x23};
 void os_getDevKey (u1_t* buf) {  memcpy_P(buf, APPKEY, 16);}
 
-/*
-*   basic configuration
-*/
+// 
+// basic configuration
+// 
 osjob_t sendjob;
+// the frequency at which to send data
 const unsigned SEND_INTERVAL = 30; //in seconds
+// the conversion rate from microseconds to seconds as the timer requires microseconds
 const unsigned us_to_s = 1000000;
 
-//required for session restore
+// 
+// configuring deep sleep
+// settings & functions used to manage power-reduction 
+// 
+
+// all those information must be restored after wake up
+// thus it is stores in RTC memory
+// that is the memory of the Real Time Clock - the only one kept alive while sleeping
+// thus, rejoining can be avoided, the network usage reduced, and power-used reduced
 RTC_DATA_ATTR bool joined = false;
 RTC_DATA_ATTR u4_t netidR;
 RTC_DATA_ATTR devaddr_t devaddrR;
@@ -58,49 +63,9 @@ RTC_DATA_ATTR u1_t* artKeyR;
 RTC_DATA_ATTR u4_t seqnoUpR;
 RTC_DATA_ATTR u4_t seqnoDnR;
 
-cSoilMoisture mySoilSensor = cSoilMoisture(32);
-cPhotoResistor myPhotoSensor = cPhotoResistor(25);
-cDHT22 myDHT22 = cDHT22(15);
-//cBMT280 myBMP280 = cBMT280();
-
-/*
-*   sending data
-*/
-void send(osjob_t* j) {
-    
-    /*
-    *   send battery status
-    *   using: LMIC_setBatteryLevel(), compare 2.5.30
-    */
-
-    if (LMIC_queryTxReady()) {
-
-        uint8_t sm = mySoilSensor.getSensorData_uint8_t();
-        uint8_t pr = myPhotoSensor.getSensorData_uint8_t();
-        uint8_t dht22_temp = myDHT22.getTemperature_uint8_t();
-        uint8_t dht22_hum = myDHT22.getHumidity_uint8_t();
-        //uint8_t bmp280_temp = myBMP280.getTemperature();
-        //uint8_t bmp280_press = myBMP280.getPressure();
-
-        //uint8_t mydata[6] = {sm, pr, dht22_temp, dht22_hum, bmp280_temp, bmp280_press};
-        uint8_t mydata[4] = { sm, pr, dht22_temp, dht22_hum };
-
-        /*Serial.println(sm);
-        Serial.println(pr);
-        Serial.println(dht22_temp);
-        Serial.println(dht22_hum);*/
-
-        LMIC_setTxData2(1, mydata, sizeof(mydata), 0);
-        //Serial.println(F("Packet queued"));
-    } else {
-        /* something is already happening, probably sending has already been initiaed */
-    }
-    //os_setTimedCallback(&sendjob, os_getTime()+sec2osticks(SEND_INTERVAL), send);
-
-}
-
+// this function stores all required information in safe memory, shuts the library down, and sends the ESP32 to sleep
 void initatite_sleep() {
-    //store session information here
+    // session information is stores in RTC memory
     seqnoDnR = LMIC.seqnoDn;
     seqnoUpR = LMIC.seqnoUp;
     netidR = LMIC.netid;
@@ -108,16 +73,59 @@ void initatite_sleep() {
     nwkKeyR = LMIC.nwkKey;
     artKeyR = LMIC.artKey;
 
-    //gracefully shutdown the library
+    // the LoRaWAN library is shut down gracefully
     LMIC_shutdown();
 
-    //sending to deep_sleep
+    // deep sleep is activated for the requested interval
     esp_deep_sleep(SEND_INTERVAL * us_to_s);
 }
 
-/*
-*   registering event callback
-*/
+
+// 
+// settings up sensors
+// those objects provide unified and simplified access to sensor data
+// 
+cSoilMoisture mySoilSensor = cSoilMoisture(32);
+cPhotoResistor myPhotoSensor = cPhotoResistor(25);
+cDHT22 myDHT22 = cDHT22(15);
+
+// 
+// this function is called when sensor data is to be sent via the network
+// it collects data and queues it for sending
+// 
+void send(osjob_t* j) {
+    
+    // 
+    // send battery status
+    // using: LMIC_setBatteryLevel(), compare 2.5.30
+    // 
+
+    // check, wheter the library is ready to receive new sensor data
+    if (LMIC_queryTxReady()) {
+
+        // sensor measurements are collected from the sensor objects in uint8_t format as required by the library send function
+        uint8_t sm = mySoilSensor.getSensorData_uint8_t();
+        uint8_t pr = myPhotoSensor.getSensorData_uint8_t();
+        uint8_t dht22_temp = myDHT22.getTemperature_uint8_t();
+        uint8_t dht22_hum = myDHT22.getHumidity_uint8_t();
+
+        // the sensor data is combined into one array
+        uint8_t mydata[4] = { sm, pr, dht22_temp, dht22_hum };
+
+        // the array is submited to the library and queued for sending
+        LMIC_setTxData2(1, mydata, sizeof(mydata), 0);
+
+    } else {
+        // the library is unable to accept new sensor data at the moment
+        // this is caused by some undefined error associated with the library being busy
+    }
+
+}
+
+// 
+// this function is called following every event registered by the LoRaWAN library
+// is is used (a) for debugging, (b) sending after joining the network, and (c) to initiate a deep sleep after sending
+// 
 void eventCb(void *pUserData, ev_t ev) {
     Serial.print(os_getTime());
     Serial.print(": ");
@@ -138,9 +146,14 @@ void eventCb(void *pUserData, ev_t ev) {
             Serial.println(F("EV_JOINING"));
             break;
         case EV_JOINED:
+            // this is called when the node successfully connects to the Things Network
             Serial.println(F("EV_JOINED"));
             LMIC_setLinkCheckMode(0);
+            // when the node joined the network, the joined parameter is set true
+            // thus, the software knows not to rejoin when waking up from deep sleep and instead to use the stores session information
             joined = true;
+            // the send function is called by the library
+            // this means: after joining the network, the sensor data is sent via the network
             os_setCallback(&sendjob, send);
             break;
         case EV_JOIN_FAILED:
@@ -150,6 +163,7 @@ void eventCb(void *pUserData, ev_t ev) {
             Serial.println(F("EV_REJOIN_FAILED"));
             break;
         case EV_TXCOMPLETE:
+            // this is called when the node successfully sent data via the network
             Serial.println(F("EV_TXCOMPLETE (includes waiting for RX windows)"));
             if (LMIC.txrxFlags & TXRX_ACK)
               Serial.println(F("Received ack"));
@@ -158,6 +172,7 @@ void eventCb(void *pUserData, ev_t ev) {
               Serial.print(LMIC.dataLen);
               Serial.println(F(" bytes of payload"));
             }
+            // after successful sending, the node is sent to sleep
             initatite_sleep();
             break;
         case EV_LOST_TSYNC:
@@ -194,35 +209,49 @@ void eventCb(void *pUserData, ev_t ev) {
     }
 }
 
-/*
-*   setup
-*/
+// 
+// setup
+// 
 void setup() {
 
     Serial.begin(9600);
     Serial.println(F("Starting"));
 
+    // initial configuration of the library
+    // configuring the pinmap
     os_init_ex(&lmic_pins);
+    // resetting all information stored in the library and the radio module -> enables a clean start of the software
     LMIC_reset();
+    // registers the callback funciton with the library
     LMIC_registerEventCb(eventCb, NULL);
 
+    // changes behavior depennding on whether the node has already joined the network
     if (joined) {
+        // called when the node has already joined the network
+        // all session informaiton is restores from RTC memory
+
+        // first, basic session parameters are set (those are callec precomputed parameters)
         LMIC_setSession(netidR, devaddrR, nwkKeyR, artKeyR);
+        // then, additional information (sequence counters) are restores
+        // this is necessary as not only 'precomputed' parameters are given but also a previous session is restored
         LMIC.seqnoDn = seqnoDnR;
         LMIC.saveIrqFlags = seqnoUpR;
-        // perhapts, send cb needs to be called here
+        // perhapts, send cb needs to be called here, subject to testing
             // os_setCallback(&sendjob, send);
     } else {
+        // called when the node did not join the network yet
+        // joins the network
         LMIC_startJoining();
     }
     
 }
 
-/*
-*   loop
-*/
+// 
+// loop
+// 
 void loop() {
 
+    // this calls the library-internal loop
     os_runloop_once();
 
 }
