@@ -27,9 +27,9 @@ class cDHT22 {
         }
 
         uint8_t getTemperature_uint8_t() {
-            float i = map(getTemperature_float(), -20, 80, 0, 100);
-            i = i*2;
-            return (uint8_t) round(i);
+            float i = getTemperature_float()*2;
+            int k = map(i, -40, 160, 0, 200);
+            return (uint8_t) round(k);
             //return (uint8_t) getTemperature_float();
         }
 };

@@ -25,18 +25,38 @@ static const u1_t PROGMEM APPEUI[8]={ 0x4F, 0x4C, 0x4E, 0x4F, 0x4F, 0x93, 0x34, 
 void os_getArtEui (u1_t* buf) { memcpy_P(buf, APPEUI, 8);}
 
 // little-endian format
-static const u1_t PROGMEM DEVEUI[8]={ 0x77, 0xBE, 0x04, 0xD0, 0x7E, 0xD5, 0xB3, 0x70 };
+//test-device
+static const u1_t PROGMEM DEVEUI[8]={0x77, 0xBE, 0x04, 0xD0, 0x7E, 0xD5, 0xB3, 0x70};
+//test-device2
+//static const u1_t PROGMEM DEVEUI[8]={0x03, 0xE0, 0x04, 0xD0, 0x7E, 0xD5, 0xB3, 0x70};
+//test-device3
+//static const u1_t PROGMEM DEVEUI[8]={0x07, 0xE0, 0x04, 0xD0, 0x7E, 0xD5, 0xB3, 0x70};
 void os_getDevEui (u1_t* buf) { memcpy_P(buf, DEVEUI, 8);}
 
 // big-endian format
-static const u1_t PROGMEM APPKEY[16] = { 0x3F, 0x92, 0xDA, 0x98, 0x9C, 0xE2, 0xE1, 0x00, 0x41, 0xEE, 0x07, 0x48, 0x17, 0x03, 0xE1, 0x7E };
+//test-device
+static const u1_t PROGMEM APPKEY[16] = {0x3F, 0x92, 0xDA, 0x98, 0x9C, 0xE2, 0xE1, 0x00, 0x41, 0xEE, 0x07, 0x48, 0x17, 0x03, 0xE1, 0x7E};
+//test-device2
+//static const u1_t PROGMEM APPKEY[16] = {0xFB, 0x96, 0x94, 0x5A, 0x15, 0x9C, 0x1D, 0xAF, 0x29, 0xA4, 0x7F, 0xFD, 0x40, 0xEC, 0x57, 0x19};
+//test-device3
+//static const u1_t PROGMEM APPKEY[16] = {0x94, 0x37, 0xF7, 0x95, 0x72, 0x64, 0xDC, 0xD0, 0x71, 0x86, 0xE2, 0x46, 0x11, 0x24, 0x72, 0x23};
 void os_getDevKey (u1_t* buf) {  memcpy_P(buf, APPKEY, 16);}
 
 /*
 *   basic configuration
 */
 osjob_t sendjob;
-const unsigned TX_INTERVAL = 30;
+const unsigned SEND_INTERVAL = 30; //in seconds
+const unsigned us_to_s = 1000000;
+
+//required for session restore
+RTC_DATA_ATTR bool joined = false;
+RTC_DATA_ATTR u4_t netidR;
+RTC_DATA_ATTR devaddr_t devaddrR;
+RTC_DATA_ATTR u1_t* nwkKeyR;
+RTC_DATA_ATTR u1_t* artKeyR;
+RTC_DATA_ATTR u4_t seqnoUpR;
+RTC_DATA_ATTR u4_t seqnoDnR;
 
 cSoilMoisture mySoilSensor = cSoilMoisture(32);
 cPhotoResistor myPhotoSensor = cPhotoResistor(25);
@@ -65,18 +85,34 @@ void send(osjob_t* j) {
         //uint8_t mydata[6] = {sm, pr, dht22_temp, dht22_hum, bmp280_temp, bmp280_press};
         uint8_t mydata[4] = { sm, pr, dht22_temp, dht22_hum };
 
-        Serial.println(sm);
+        /*Serial.println(sm);
         Serial.println(pr);
         Serial.println(dht22_temp);
-        Serial.println(dht22_hum);
+        Serial.println(dht22_hum);*/
 
         LMIC_setTxData2(1, mydata, sizeof(mydata), 0);
-        Serial.println(F("Packet queued"));
+        //Serial.println(F("Packet queued"));
     } else {
         /* something is already happening, probably sending has already been initiaed */
     }
-    //os_setTimedCallback(&sendjob, os_getTime()+sec2osticks(TX_INTERVAL), send);
+    //os_setTimedCallback(&sendjob, os_getTime()+sec2osticks(SEND_INTERVAL), send);
 
+}
+
+void initatite_sleep() {
+    //store session information here
+    seqnoDnR = LMIC.seqnoDn;
+    seqnoUpR = LMIC.seqnoUp;
+    netidR = LMIC.netid;
+    devaddrR = LMIC.devaddr;
+    nwkKeyR = LMIC.nwkKey;
+    artKeyR = LMIC.artKey;
+
+    //gracefully shutdown the library
+    LMIC_shutdown();
+
+    //sending to deep_sleep
+    esp_deep_sleep(SEND_INTERVAL * us_to_s);
 }
 
 /*
@@ -104,6 +140,7 @@ void eventCb(void *pUserData, ev_t ev) {
         case EV_JOINED:
             Serial.println(F("EV_JOINED"));
             LMIC_setLinkCheckMode(0);
+            joined = true;
             os_setCallback(&sendjob, send);
             break;
         case EV_JOIN_FAILED:
@@ -121,7 +158,7 @@ void eventCb(void *pUserData, ev_t ev) {
               Serial.print(LMIC.dataLen);
               Serial.println(F(" bytes of payload"));
             }
-            os_setTimedCallback(&sendjob, os_getTime()+sec2osticks(TX_INTERVAL), send);
+            initatite_sleep();
             break;
         case EV_LOST_TSYNC:
             Serial.println(F("EV_LOST_TSYNC"));
@@ -166,12 +203,18 @@ void setup() {
     Serial.println(F("Starting"));
 
     os_init_ex(&lmic_pins);
-
     LMIC_reset();
     LMIC_registerEventCb(eventCb, NULL);
-    LMIC_startJoining();
 
-    //os_setCallback(&sendjob, send);
+    if (joined) {
+        LMIC_setSession(netidR, devaddrR, nwkKeyR, artKeyR);
+        LMIC.seqnoDn = seqnoDnR;
+        LMIC.saveIrqFlags = seqnoUpR;
+        // perhapts, send cb needs to be called here
+            // os_setCallback(&sendjob, send);
+    } else {
+        LMIC_startJoining();
+    }
     
 }
 
@@ -181,7 +224,5 @@ void setup() {
 void loop() {
 
     os_runloop_once();
-
-    //Serial.println(F(mySoilSensor.getSensorData()));
 
 }
