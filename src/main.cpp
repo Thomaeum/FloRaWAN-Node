@@ -10,7 +10,6 @@
 /*
 * PIN mapping: configuration of the pins used by the library
 */
-*/
 const lmic_pinmap lmic_pins = {
     .nss = 27,
     .rxtx = LMIC_UNUSED_PIN,
@@ -237,7 +236,7 @@ void setup() {
         LMIC.seqnoDn = seqnoDnR;
         LMIC.saveIrqFlags = seqnoUpR;
         // perhapts, send cb needs to be called here, subject to testing
-            // os_setCallback(&sendjob, send);
+        os_setCallback(&sendjob, send);
     } else {
         // called when the node did not join the network yet
         // joins the network
